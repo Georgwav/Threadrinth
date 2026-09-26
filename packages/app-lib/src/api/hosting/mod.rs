@@ -3,11 +3,17 @@
 //! folder, described by `threadrinth-server.json`, so it travels with the app
 //! folder like instances do.
 
+mod content;
 mod process;
 mod properties;
 mod public;
 mod setup;
 
+pub use content::{
+    ServerContent, ServerInstall, ServerSearchHit, ServerSearchResults,
+    install_server_project, remove_server_content, search_server_content,
+    server_content, set_server_content_enabled,
+};
 pub use process::stop_all_servers;
 pub use process::{
     ConsoleLine, ConsoleStream, ServerState, ServerStatus,
@@ -45,6 +51,9 @@ pub struct HostedServer {
     pub game_version: String,
     pub loader: ModLoader,
     pub loader_version: Option<String>,
+    /// Paper or Purpur, which load plugins instead of mods.
+    #[serde(default)]
+    pub platform: Option<PluginPlatform>,
     pub memory_mb: u32,
     pub port: u16,
     /// The user accepted the Minecraft EULA for this server.
@@ -52,9 +61,49 @@ pub struct HostedServer {
     pub launch: LaunchTarget,
     /// The files picked from the instance, reused when updating the mods.
     pub selection: Option<ServerPackSelection>,
+    /// Mods added on the server's Content tab (without `.disabled`), kept
+    /// when the mods are updated from the instance.
+    #[serde(default)]
+    pub added_content: Vec<String>,
     #[serde(default)]
     pub public_access: PublicAccess,
     pub created: DateTime<Utc>,
+}
+
+/// Server software that loads Bukkit plugins.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginPlatform {
+    Paper,
+    Purpur,
+}
+
+/// What a server made from scratch runs.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerSoftware {
+    Vanilla,
+    Fabric,
+    Quilt,
+    Forge,
+    #[serde(rename = "neoforge")]
+    NeoForge,
+    Paper,
+    Purpur,
+}
+
+impl ServerSoftware {
+    fn parts(self) -> (ModLoader, Option<PluginPlatform>) {
+        match self {
+            Self::Vanilla => (ModLoader::Vanilla, None),
+            Self::Fabric => (ModLoader::Fabric, None),
+            Self::Quilt => (ModLoader::Quilt, None),
+            Self::Forge => (ModLoader::Forge, None),
+            Self::NeoForge => (ModLoader::NeoForge, None),
+            Self::Paper => (ModLoader::Vanilla, Some(PluginPlatform::Paper)),
+            Self::Purpur => (ModLoader::Vanilla, Some(PluginPlatform::Purpur)),
+        }
+    }
 }
 
 /// How the server is started.
@@ -99,6 +148,17 @@ pub struct CreateServer {
     pub included: Vec<String>,
     pub excluded: Vec<String>,
     pub world: WorldSource,
+    pub memory_mb: Option<u32>,
+    pub eula_accepted: bool,
+}
+
+/// A server made from scratch rather than from an instance.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreateBlankServer {
+    pub name: String,
+    pub software: ServerSoftware,
+    pub game_version: String,
+    pub seed: Option<String>,
     pub memory_mb: Option<u32>,
     pub eula_accepted: bool,
 }
@@ -187,7 +247,7 @@ async fn read_server(dir: &Path) -> crate::Result<Option<HostedServer>> {
     Ok(Some(server))
 }
 
-async fn write_server(server: &HostedServer) -> crate::Result<()> {
+pub(super) async fn write_server(server: &HostedServer) -> crate::Result<()> {
     let dir = server_dir(&server.id).await?;
     let temporary = dir.join(format!("{SERVER_FILE}.tmp"));
     io::write(&temporary, serde_json::to_vec_pretty(server)?).await?;
@@ -236,18 +296,9 @@ pub async fn create_server(
         .await?;
 
         let port = free_port(&list_servers().await?);
-        let mut properties = vec![
-            ("server-port".to_string(), port.to_string()),
-            ("motd".to_string(), name.to_string()),
-            ("level-name".to_string(), "world".to_string()),
-        ];
+        let mut seed = None;
         match &request.world {
-            WorldSource::New { seed } => {
-                if let Some(seed) = seed.as_deref().filter(|s| !s.is_empty()) {
-                    properties
-                        .push(("level-seed".to_string(), seed.to_string()));
-                }
-            }
+            WorldSource::New { seed: new_seed } => seed = new_seed.as_deref(),
             WorldSource::Copy { instance_id, world } => {
                 let source = crate::api::instance::get_full_path(instance_id)
                     .await?
@@ -260,7 +311,7 @@ pub async fn create_server(
                 .await?;
             }
         }
-        properties::write_properties(&dir, &properties).await?;
+        write_initial_properties(&dir, name, port, seed).await?;
 
         let server = HostedServer {
             id: id.clone(),
@@ -269,6 +320,7 @@ pub async fn create_server(
             game_version: content_set.game_version.clone(),
             loader: content_set.loader,
             loader_version: content_set.loader_version.clone(),
+            platform: None,
             memory_mb: request.memory_mb.unwrap_or(DEFAULT_MEMORY_MB),
             port,
             eula_accepted: request.eula_accepted,
@@ -277,9 +329,127 @@ pub async fn create_server(
                 included: request.included.clone(),
                 excluded: request.excluded.clone(),
             }),
+            added_content: Vec::new(),
             public_access: PublicAccess::Off,
             created: Utc::now(),
         };
+        write_server(&server).await?;
+        Ok::<_, crate::Error>(server)
+    }
+    .await;
+
+    if result.is_err() {
+        let _ = io::remove_dir_all(&dir).await;
+    }
+    result
+}
+
+async fn write_initial_properties(
+    dir: &Path,
+    name: &str,
+    port: u16,
+    seed: Option<&str>,
+) -> crate::Result<()> {
+    let mut properties = vec![
+        ("server-port".to_string(), port.to_string()),
+        ("motd".to_string(), name.to_string()),
+        ("level-name".to_string(), "world".to_string()),
+    ];
+    if let Some(seed) = seed.map(str::trim).filter(|s| !s.is_empty()) {
+        properties.push(("level-seed".to_string(), seed.to_string()));
+    }
+    properties::write_properties(dir, &properties).await
+}
+
+/// Makes a server from scratch: the chosen software for a Minecraft
+/// version (the newest stable mod loader, or Paper's or Purpur's newest
+/// build) and a new world. Mods or plugins are added afterwards.
+#[tracing::instrument(skip(request), fields(software = ?request.software))]
+pub async fn create_blank_server(
+    request: CreateBlankServer,
+) -> crate::Result<HostedServer> {
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(input("Give the server a name"));
+    }
+    let game_version = request.game_version.trim().to_string();
+    if game_version.is_empty() {
+        return Err(input("Pick a Minecraft version"));
+    }
+    let (loader, platform) = request.software.parts();
+    let loader_version = if loader == ModLoader::Vanilla {
+        None
+    } else {
+        let version = crate::launcher::get_loader_version_from_profile(
+            &game_version,
+            loader,
+            Some("stable"),
+        )
+        .await?
+        .ok_or_else(|| {
+            input(format!(
+                "{} has no version for Minecraft {game_version}",
+                loader.as_str()
+            ))
+        })?;
+        Some(version.id)
+    };
+
+    let root = servers_dir().await?;
+    io::create_dir_all(&root).await?;
+    let id = free_folder_name(&root, &folder_name(name));
+    let dir = root.join(&id);
+    io::create_dir_all(&dir).await?;
+
+    let result = async {
+        let launch = match platform {
+            Some(platform) => {
+                setup::download_plugin_platform(&dir, platform, &game_version)
+                    .await?
+            }
+            None => {
+                let state = State::get().await?;
+                let launcher = crate::api::instance::server_launcher(
+                    &state,
+                    &game_version,
+                    loader,
+                    loader_version.as_deref(),
+                )
+                .await?;
+                io::write(dir.join(&launcher.file_name), &launcher.jar).await?;
+                setup::install_server(
+                    &dir,
+                    &game_version,
+                    loader,
+                    loader_version.as_deref(),
+                    &launcher.file_name,
+                )
+                .await?
+            }
+        };
+        let port = free_port(&list_servers().await?);
+        write_initial_properties(&dir, name, port, request.seed.as_deref())
+            .await?;
+        let server = HostedServer {
+            id: id.clone(),
+            name: name.to_string(),
+            instance_id: None,
+            game_version: game_version.clone(),
+            loader,
+            loader_version: loader_version.clone(),
+            platform,
+            memory_mb: request.memory_mb.unwrap_or(DEFAULT_MEMORY_MB),
+            port,
+            eula_accepted: request.eula_accepted,
+            launch,
+            selection: None,
+            added_content: Vec::new(),
+            public_access: PublicAccess::Off,
+            created: Utc::now(),
+        };
+        if let Some(folder) = content::content_folder(&server) {
+            io::create_dir_all(dir.join(folder)).await?;
+        }
         write_server(&server).await?;
         Ok::<_, crate::Error>(server)
     }
@@ -361,7 +531,14 @@ pub async fn sync_server_mods(id: &str) -> crate::Result<usize> {
             .map_err(|error| IOError::with_path(error, &mods_dir))?
         {
             let path = entry.path();
-            if path.extension().is_some_and(|extension| extension == "jar") {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let added = server
+                .added_content
+                .iter()
+                .any(|x| *x == name.trim_end_matches(".disabled"));
+            if path.extension().is_some_and(|extension| extension == "jar")
+                && !added
+            {
                 io::remove_file(&path).await?;
             }
         }
@@ -456,6 +633,7 @@ mod tests {
             game_version: "1.21.1".to_string(),
             loader: ModLoader::Vanilla,
             loader_version: None,
+            platform: None,
             memory_mb: DEFAULT_MEMORY_MB,
             port,
             eula_accepted: false,
@@ -463,6 +641,7 @@ mod tests {
                 path: "server.jar".to_string(),
             },
             selection: None,
+            added_content: Vec::new(),
             public_access: PublicAccess::Off,
             created: Utc::now(),
         };

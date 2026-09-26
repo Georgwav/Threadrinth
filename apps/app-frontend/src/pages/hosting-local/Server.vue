@@ -37,6 +37,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ServerContentPanel from '@/components/ui/hosting/ServerContentPanel.vue'
 import {
 	check_server_reachability,
 	type ConsoleLine,
@@ -50,6 +51,7 @@ import {
 	server_folder,
 	server_properties,
 	server_status,
+	serverSoftwareLabel,
 	type ServerStatus,
 	set_server_properties,
 	start_server,
@@ -77,6 +79,7 @@ const messages = defineMessages({
 	stop: { id: 'app.hosting.stop', defaultMessage: 'Stop' },
 	kill: { id: 'app.hosting.kill', defaultMessage: 'Force stop' },
 	console: { id: 'app.hosting.tab.console', defaultMessage: 'Console' },
+	content: { id: 'app.hosting.tab.content', defaultMessage: 'Content' },
 	settings: { id: 'app.hosting.tab.settings', defaultMessage: 'Settings' },
 	commandPlaceholder: {
 		id: 'app.hosting.command-placeholder',
@@ -169,7 +172,7 @@ const messages = defineMessages({
 	},
 })
 
-type Tab = 'console' | 'settings'
+type Tab = 'console' | 'content' | 'settings'
 type InputValue = string | number | undefined
 const GAMEMODES = ['survival', 'creative', 'adventure', 'spectator']
 const DIFFICULTIES = ['peaceful', 'easy', 'normal', 'hard']
@@ -533,7 +536,7 @@ onUnmounted(() => {
 				<div class="flex flex-col gap-1">
 					<h1 class="m-0 text-2xl font-extrabold text-contrast">{{ server.name }}</h1>
 					<span class="text-sm text-secondary">
-						{{ server.loader }} {{ server.game_version }} ·
+						{{ serverSoftwareLabel(server) }} ·
 						<span
 							:class="{
 								'text-green': state === 'running',
@@ -654,8 +657,15 @@ onUnmounted(() => {
 
 		<Chips
 			v-model="tab"
-			:items="['console', 'settings'] as Tab[]"
+			:items="['console', 'content', 'settings'] as Tab[]"
 			:format-label="(item: Tab) => formatMessage(messages[item])"
+		/>
+
+		<ServerContentPanel
+			v-if="tab === 'content'"
+			:key="server.id"
+			:server="server"
+			:running="state !== 'offline'"
 		/>
 
 		<div v-if="tab === 'console'" class="flex min-h-[20rem] flex-1 flex-col gap-2">
