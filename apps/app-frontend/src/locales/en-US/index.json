@@ -659,6 +659,60 @@
   "app.hosting.command-placeholder": {
     "message": "Type a command, like say Hello or op YourName"
   },
+  "app.hosting.content.added": {
+    "message": "Added {name}"
+  },
+  "app.hosting.content.added-files": {
+    "message": "{files}"
+  },
+  "app.hosting.content.downloads": {
+    "message": "{count} downloads"
+  },
+  "app.hosting.content.install": {
+    "message": "Install"
+  },
+  "app.hosting.content.installed": {
+    "message": "Installed"
+  },
+  "app.hosting.content.installed-mods": {
+    "message": "Installed mods"
+  },
+  "app.hosting.content.installed-plugins": {
+    "message": "Installed plugins"
+  },
+  "app.hosting.content.load-more": {
+    "message": "Load more"
+  },
+  "app.hosting.content.missing": {
+    "message": "No version for this server of: {names}"
+  },
+  "app.hosting.content.none": {
+    "message": "Nothing installed yet."
+  },
+  "app.hosting.content.quick-add": {
+    "message": "Quick add"
+  },
+  "app.hosting.content.quick-add-hint": {
+    "message": "Popular performance and admin picks for this server."
+  },
+  "app.hosting.content.remove": {
+    "message": "Remove"
+  },
+  "app.hosting.content.restart": {
+    "message": "Restart the server to load changes."
+  },
+  "app.hosting.content.search-mods": {
+    "message": "Search server mods…"
+  },
+  "app.hosting.content.search-plugins": {
+    "message": "Search plugins…"
+  },
+  "app.hosting.content.unmarked": {
+    "message": "{names} isn’t marked for Minecraft {version} yet, so its newest build was added. Most plugins keep working on newer versions."
+  },
+  "app.hosting.content.vanilla": {
+    "message": "Vanilla servers can’t load mods or plugins. Create a new server with a mod loader, Paper or Purpur to add them."
+  },
   "app.hosting.copied": {
     "message": "Address copied"
   },
@@ -729,7 +783,7 @@
     "message": "Run any instance as a server on this computer, with only the mods a server needs."
   },
   "app.hosting.empty.description": {
-    "message": "Pick an instance to host. Its Minecraft version, mod loader and server-side mods are set up for you."
+    "message": "Host an instance with its server-side mods, or make a new server with Fabric, Forge, Paper, Purpur and more."
   },
   "app.hosting.empty.heading": {
     "message": "No servers yet"
@@ -787,6 +841,33 @@
   },
   "app.hosting.mods-updated": {
     "message": "{count, plural, one {# mod} other {# mods}} copied from the instance."
+  },
+  "app.hosting.new-server": {
+    "message": "New server"
+  },
+  "app.hosting.new.creating": {
+    "message": "Setting up the server. The first time downloads the server and Java, which can take a few minutes."
+  },
+  "app.hosting.new.header": {
+    "message": "New server"
+  },
+  "app.hosting.new.mod-loaders": {
+    "message": "Mods"
+  },
+  "app.hosting.new.plugin-loaders": {
+    "message": "Plugins"
+  },
+  "app.hosting.new.snapshots": {
+    "message": "Show snapshots"
+  },
+  "app.hosting.new.software": {
+    "message": "Software"
+  },
+  "app.hosting.new.software-hint": {
+    "message": "Mod loaders run mods (players may need the same mods). Paper and Purpur run plugins, which work with unmodded game clients."
+  },
+  "app.hosting.new.version": {
+    "message": "Minecraft version"
   },
   "app.hosting.open-folder": {
     "message": "Open folder"
@@ -895,6 +976,9 @@
   },
   "app.hosting.tab.console": {
     "message": "Console"
+  },
+  "app.hosting.tab.content": {
+    "message": "Content"
   },
   "app.hosting.tab.settings": {
     "message": "Settings"

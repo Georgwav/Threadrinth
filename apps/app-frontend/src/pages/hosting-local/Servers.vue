@@ -13,6 +13,7 @@ import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import HostServerModal from '@/components/ui/hosting/HostServerModal.vue'
+import NewServerModal from '@/components/ui/hosting/NewServerModal.vue'
 import {
 	type HostedServer,
 	list_servers,
@@ -21,6 +22,7 @@ import {
 	playit_unlink,
 	type PlayitLink,
 	server_status,
+	serverSoftwareLabel,
 	type ServerStatus,
 	start_server,
 	stop_server,
@@ -42,11 +44,12 @@ const messages = defineMessages({
 			'Run any instance as a server on this computer, with only the mods a server needs.',
 	},
 	hostInstance: { id: 'app.hosting.host-instance', defaultMessage: 'Host an instance' },
+	newServer: { id: 'app.hosting.new-server', defaultMessage: 'New server' },
 	emptyHeading: { id: 'app.hosting.empty.heading', defaultMessage: 'No servers yet' },
 	emptyDescription: {
 		id: 'app.hosting.empty.description',
 		defaultMessage:
-			'Pick an instance to host. Its Minecraft version, mod loader and server-side mods are set up for you.',
+			'Host an instance with its server-side mods, or make a new server with Fabric, Forge, Paper, Purpur and more.',
 	},
 	start: { id: 'app.hosting.start', defaultMessage: 'Start' },
 	stop: { id: 'app.hosting.stop', defaultMessage: 'Stop' },
@@ -91,6 +94,7 @@ const instanceIcons = ref(new Map<string, string | null>())
 const statuses = ref<Record<string, ServerStatus>>({})
 const playit = ref<PlayitLink>({ linked: false, link_url: null, error: null })
 const hostModal = ref<InstanceType<typeof HostServerModal>>()
+const newModal = ref<InstanceType<typeof NewServerModal>>()
 let timer: ReturnType<typeof setInterval> | undefined
 
 const stateLabels = computed(() => ({
@@ -167,6 +171,7 @@ onUnmounted(() => {
 <template>
 	<div class="flex flex-col gap-4 p-6">
 		<HostServerModal ref="hostModal" @created="() => void refresh()" />
+		<NewServerModal ref="newModal" @created="() => void refresh()" />
 		<div class="flex flex-wrap items-center justify-between gap-4">
 			<div class="flex flex-col gap-1">
 				<h1 class="m-0 text-2xl font-extrabold text-contrast">
@@ -174,10 +179,16 @@ onUnmounted(() => {
 				</h1>
 				<p class="m-0 text-secondary">{{ formatMessage(messages.description) }}</p>
 			</div>
-			<Button type="colored" color="brand" @click="hostModal?.show()">
-				<PlusIcon />
-				{{ formatMessage(messages.hostInstance) }}
-			</Button>
+			<div class="flex flex-wrap gap-2">
+				<Button @click="newModal?.show()">
+					<PlusIcon />
+					{{ formatMessage(messages.newServer) }}
+				</Button>
+				<Button type="colored" color="brand" @click="hostModal?.show()">
+					<ServerIcon />
+					{{ formatMessage(messages.hostInstance) }}
+				</Button>
+			</div>
 		</div>
 
 		<div class="flex flex-col gap-3 rounded-2xl bg-bg-raised p-4">
@@ -229,7 +240,7 @@ onUnmounted(() => {
 				<div class="flex min-w-0 flex-1 flex-col gap-1">
 					<span class="truncate font-semibold text-contrast">{{ server.name }}</span>
 					<span class="text-sm text-secondary">
-						{{ server.loader }} {{ server.game_version }} ·
+						{{ serverSoftwareLabel(server) }} ·
 						{{ stateLabels[statuses[server.id]?.state ?? 'offline'] }}
 						<template v-if="statuses[server.id]?.state === 'running'">
 							·

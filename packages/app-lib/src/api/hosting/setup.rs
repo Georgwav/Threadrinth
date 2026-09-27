@@ -1,9 +1,11 @@
 //! Installs a mod loader's server into a server folder and finds the Java
 //! the server needs.
 
-use super::LaunchTarget;
+use super::{LaunchTarget, PluginPlatform};
 use crate::state::{JavaVersion, ModLoader, State};
+use crate::util::fetch::{fetch, fetch_json};
 use crate::util::io::{self, IOError};
+use reqwest::Method;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
@@ -49,6 +51,66 @@ pub(super) fn java_command(java: &Path) -> Command {
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
+}
+
+/// Downloads Paper's or Purpur's newest build for the Minecraft version.
+pub(super) async fn download_plugin_platform(
+    dir: &Path,
+    platform: PluginPlatform,
+    game_version: &str,
+) -> crate::Result<LaunchTarget> {
+    let state = State::get().await?;
+    let unavailable = || {
+        crate::Error::from(crate::ErrorKind::InputError(format!(
+            "{} has no build for Minecraft {game_version} yet",
+            match platform {
+                PluginPlatform::Paper => "Paper",
+                PluginPlatform::Purpur => "Purpur",
+            }
+        )))
+    };
+    let (url, file_name) = match platform {
+        PluginPlatform::Paper => {
+            let build: serde_json::Value = fetch_json(
+                Method::GET,
+                &format!(
+                    "https://fill.papermc.io/v3/projects/paper/versions/{}/builds/latest",
+                    urlencoding::encode(game_version)
+                ),
+                None,
+                None,
+                None,
+                &state.fetch_semaphore,
+                &state.pool,
+            )
+            .await
+            .map_err(|_| unavailable())?;
+            let url = build["downloads"]["server:default"]["url"]
+                .as_str()
+                .ok_or_else(unavailable)?
+                .to_string();
+            (url, "paper.jar")
+        }
+        PluginPlatform::Purpur => (
+            format!(
+                "https://api.purpurmc.org/v2/purpur/{}/latest/download",
+                urlencoding::encode(game_version)
+            ),
+            "purpur.jar",
+        ),
+    };
+    let jar =
+        fetch(&url, None, None, None, &state.fetch_semaphore, &state.pool)
+            .await
+            .map_err(|_| unavailable())?;
+    // A missing build answers with a small JSON error, not a jar.
+    if !jar.starts_with(b"PK") {
+        return Err(unavailable());
+    }
+    io::write(dir.join(file_name), &jar).await?;
+    Ok(LaunchTarget::Jar {
+        path: file_name.to_string(),
+    })
 }
 
 /// Runs the loader's installer where one is needed (Quilt, Forge, NeoForge)

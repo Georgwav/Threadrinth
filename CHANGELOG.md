@@ -2,6 +2,13 @@
 
 Each release's GitHub description is taken from its section here (see `scripts/release-notes.py`).
 
+## 0.21.10
+
+- New server: make a server from scratch with Vanilla, Fabric, Quilt, Forge, NeoForge, or the plugin servers Paper and Purpur, for any Minecraft version.
+- A Content tab on every server: search Modrinth for server mods or plugins that fit it and install them with their dependencies, turn them on and off, or remove them.
+- Quick add buttons for popular picks, like Lithium, FerriteCore and C2ME for Fabric servers, or LuckPerms, EssentialsX, ViaVersion and Geyser for Paper.
+- Mods added to a server built from an instance stay when its mods are updated from the instance.
+
 ## 0.21.9
 
 - Fixed playit.gg tunnels ("failed to parse body"): they use playit.gg's current way of creating tunnels.

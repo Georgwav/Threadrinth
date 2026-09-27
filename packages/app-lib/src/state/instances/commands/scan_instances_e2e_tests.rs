@@ -821,6 +821,26 @@ async fn folder_instances_work_with_launcher_features() {
     );
     println!("hosting a Fabric server: ok");
 
+    // A mod added on the Content tab stays when the mods are updated from
+    // the instance.
+    let added = hosting::install_server_project(&fabric.id, "lithium")
+        .await
+        .unwrap();
+    assert_eq!(added.installed.len(), 1, "{added:?}");
+    hosting::sync_server_mods(&fabric.id).await.unwrap();
+    assert!(fabric_dir.join("mods").join(&added.installed[0]).is_file());
+    hosting::remove_server_content(&fabric.id, &added.installed[0])
+        .await
+        .unwrap();
+    assert!(
+        hosting::get_server(&fabric.id)
+            .await
+            .unwrap()
+            .added_content
+            .is_empty()
+    );
+    println!("server content kept across mod updates: ok");
+
     let legacy_selection = api::server_pack_selection(&legacy.instance.id)
         .await
         .unwrap();
@@ -864,6 +884,108 @@ async fn folder_instances_work_with_launcher_features() {
     hosting::delete_server(&forge.id).await.unwrap();
     assert_eq!(hosting::list_servers().await.unwrap().len(), 1);
     println!("hosting a Forge server: ok");
+
+    // --- New servers without an instance, with content from Modrinth ------
+    let paper = hosting::create_blank_server(hosting::CreateBlankServer {
+        name: "Paper Server".to_string(),
+        software: hosting::ServerSoftware::Paper,
+        game_version: "1.21.8".to_string(),
+        seed: None,
+        memory_mb: Some(2048),
+        eula_accepted: true,
+    })
+    .await
+    .unwrap();
+    assert_eq!(paper.platform, Some(hosting::PluginPlatform::Paper));
+    hosting::edit_server(
+        &paper.id,
+        hosting::EditServer {
+            port: Some(25603),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let found = hosting::search_server_content(&paper.id, "chunky", 0)
+        .await
+        .unwrap();
+    assert!(
+        found.hits.iter().any(|hit| hit.slug == "chunky"),
+        "{found:?}"
+    );
+    let installed = hosting::install_server_project(&paper.id, "chunky")
+        .await
+        .unwrap();
+    assert_eq!(installed.installed.len(), 1, "{installed:?}");
+    let content = hosting::server_content(&paper.id).await.unwrap();
+    assert_eq!(content.len(), 1);
+    assert_eq!(content[0].title.as_deref(), Some("Chunky"));
+    assert!(
+        hosting::server_dir(&paper.id)
+            .await
+            .unwrap()
+            .join("plugins")
+            .join(&content[0].file_name)
+            .is_file()
+    );
+    let disabled = hosting::set_server_content_enabled(
+        &paper.id,
+        &content[0].file_name,
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(disabled.ends_with(".disabled"));
+    assert!(!hosting::server_content(&paper.id).await.unwrap()[0].enabled);
+    hosting::set_server_content_enabled(&paper.id, &disabled, true)
+        .await
+        .unwrap();
+    // Client-only mods are refused.
+    assert!(
+        hosting::install_server_project(&paper.id, "sodium")
+            .await
+            .is_err()
+    );
+    run_server_until_ready(&paper.id).await;
+    hosting::remove_server_content(&paper.id, &content[0].file_name)
+        .await
+        .unwrap();
+    assert!(hosting::server_content(&paper.id).await.unwrap().is_empty());
+    hosting::delete_server(&paper.id).await.unwrap();
+    println!("new Paper server with a plugin: ok");
+
+    let fabric = hosting::create_blank_server(hosting::CreateBlankServer {
+        name: "Fabric Server".to_string(),
+        software: hosting::ServerSoftware::Fabric,
+        game_version: "1.21.1".to_string(),
+        seed: Some("42".to_string()),
+        memory_mb: Some(2048),
+        eula_accepted: true,
+    })
+    .await
+    .unwrap();
+    assert!(fabric.loader_version.is_some());
+    hosting::edit_server(
+        &fabric.id,
+        hosting::EditServer {
+            port: Some(25604),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    hosting::install_server_project(&fabric.id, "lithium")
+        .await
+        .unwrap();
+    assert_eq!(
+        hosting::server_content(&fabric.id).await.unwrap()[0]
+            .title
+            .as_deref(),
+        Some("Lithium")
+    );
+    run_server_until_ready(&fabric.id).await;
+    hosting::delete_server(&fabric.id).await.unwrap();
+    println!("new Fabric server with a mod: ok");
 
     // --- CurseForge tab: a Feed the Beast modpack as a new instance -------
     crate::api::curseforge::e2e_tests::install_ftb_pack().await;

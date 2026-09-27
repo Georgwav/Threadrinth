@@ -4,7 +4,8 @@ use crate::api::Result;
 use std::collections::HashMap;
 use tauri::Runtime;
 use theseus::hosting::{
-    ConsoleLine, CreateServer, EditServer, HostedServer, PlayitLink,
+    ConsoleLine, CreateBlankServer, CreateServer, EditServer, HostedServer,
+    PlayitLink, ServerContent, ServerInstall, ServerSearchResults,
     ServerStatus,
 };
 
@@ -14,6 +15,12 @@ pub fn init<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
             hosting_list,
             hosting_get,
             hosting_create,
+            hosting_create_blank,
+            hosting_content,
+            hosting_content_set_enabled,
+            hosting_content_remove,
+            hosting_install_project,
+            hosting_search_content,
             hosting_edit,
             hosting_delete,
             hosting_start,
@@ -47,6 +54,52 @@ pub async fn hosting_get(id: &str) -> Result<HostedServer> {
 #[tauri::command]
 pub async fn hosting_create(request: CreateServer) -> Result<HostedServer> {
     Ok(theseus::hosting::create_server(request).await?)
+}
+
+#[tauri::command]
+pub async fn hosting_create_blank(
+    request: CreateBlankServer,
+) -> Result<HostedServer> {
+    Ok(theseus::hosting::create_blank_server(request).await?)
+}
+
+#[tauri::command]
+pub async fn hosting_content(id: &str) -> Result<Vec<ServerContent>> {
+    Ok(theseus::hosting::server_content(id).await?)
+}
+
+#[tauri::command]
+pub async fn hosting_content_set_enabled(
+    id: &str,
+    file_name: &str,
+    enabled: bool,
+) -> Result<String> {
+    Ok(
+        theseus::hosting::set_server_content_enabled(id, file_name, enabled)
+            .await?,
+    )
+}
+
+#[tauri::command]
+pub async fn hosting_content_remove(id: &str, file_name: &str) -> Result<()> {
+    Ok(theseus::hosting::remove_server_content(id, file_name).await?)
+}
+
+#[tauri::command]
+pub async fn hosting_install_project(
+    id: &str,
+    project: &str,
+) -> Result<ServerInstall> {
+    Ok(theseus::hosting::install_server_project(id, project).await?)
+}
+
+#[tauri::command]
+pub async fn hosting_search_content(
+    id: &str,
+    query: &str,
+    offset: u32,
+) -> Result<ServerSearchResults> {
+    Ok(theseus::hosting::search_server_content(id, query, offset).await?)
 }
 
 #[tauri::command]

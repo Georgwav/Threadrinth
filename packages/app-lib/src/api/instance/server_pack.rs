@@ -370,9 +370,9 @@ fn write_zip(path: &Path, entries: Vec<(String, Entry)>) -> crate::Result<()> {
     Ok(())
 }
 
-struct ServerLauncher {
-    file_name: String,
-    jar: Vec<u8>,
+pub(crate) struct ServerLauncher {
+    pub(crate) file_name: String,
+    pub(crate) jar: Vec<u8>,
     start_sh: String,
     start_bat: String,
 }
@@ -381,7 +381,7 @@ const JAVA_ARGS: &str = "-Xms2G -Xmx4G";
 
 /// The loader's server launcher (or installer) plus start scripts. Installers
 /// run once on first start; the scripts skip them afterwards.
-async fn server_launcher(
+pub(crate) async fn server_launcher(
     state: &State,
     game_version: &str,
     loader: ModLoader,
