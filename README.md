@@ -25,7 +25,7 @@ Ember, Sand, Orchid, Amethyst and Blossom, plus any accent color.
 
 - **Instance folders just work:** drop one in and click **Refresh**, like in Prism Launcher.
 - **Brings your Modrinth App instances along** with their icons and playtime.
-- **Works across Windows and Linux**, even with one shared instances folder.
+- **Works on Windows, macOS and Linux**, even with one shared instances folder.
 - **Copy or move worlds** between instances and **export server packs**.
 - **Skin history** of every skin you wear.
 - **Updates itself** in one click.
@@ -44,7 +44,9 @@ irm https://raw.githubusercontent.com/Georgwav/Threadrinth/main/scripts/install.
 curl -fsSL https://raw.githubusercontent.com/Georgwav/Threadrinth/main/scripts/install.sh | sh
 ```
 
-Both download the latest release, check it against its published checksum and install it. Run them again at any time to reinstall. You can also download the installers from the [releases page](https://github.com/Georgwav/Threadrinth/releases).
+**macOS:** download the `.dmg` from the [latest release](https://github.com/Georgwav/Threadrinth/releases/latest) (one app for Apple Silicon and Intel) and drag Threadrinth into Applications.
+
+The Windows and Linux commands download the latest release, check it against its published checksum and install it. Run them again at any time to reinstall. You can also download the installers from the [releases page](https://github.com/Georgwav/Threadrinth/releases).
 
 ## Development
 
@@ -58,7 +60,7 @@ Needs Node.js, pnpm, Rust and the [Tauri prerequisites](https://v2.tauri.app/sta
 
 ## Code signing policy
 
-Windows releases are built by GitHub Actions from this repository. Only builds of `main` are signed.
+Windows and macOS releases are built by GitHub Actions from this repository. Only builds of `main` are signed.
 
 - **Committers and reviewers:** [Georgwav](https://github.com/Georgwav)
 - **Approvers:** [Georgwav](https://github.com/Georgwav)

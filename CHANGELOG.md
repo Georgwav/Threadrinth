@@ -2,6 +2,10 @@
 
 Each release's GitHub description is taken from its section here (see `scripts/release-notes.py`).
 
+## 0.21.11
+
+- Threadrinth for macOS: one app for Apple Silicon and Intel Macs, as a `.dmg`, updating itself like on Windows and Linux.
+
 ## 0.21.10
 
 - New server: make a server from scratch with Vanilla, Fabric, Quilt, Forge, NeoForge, or the plugin servers Paper and Purpur, for any Minecraft version.

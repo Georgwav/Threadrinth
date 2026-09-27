@@ -7,7 +7,13 @@ use crate::util::fetch::{fetch, fetch_json};
 use crate::util::io::{self, IOError};
 use reqwest::Method;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use tokio::process::Command;
+use tokio::sync::Mutex;
+
+/// One Java install at a time: two servers starting together would
+/// otherwise delete and extract the same Java folder over each other.
+static JAVA_INSTALL: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// The Java a Minecraft version's server needs: an installed one the app
 /// knows, or one it downloads (like for playing).
@@ -29,13 +35,27 @@ pub(super) async fn server_java(game_version: &str) -> crate::Result<PathBuf> {
         .java_version
         .as_ref()
         .map_or(8, |java| java.major_version);
+    let _install = JAVA_INSTALL.lock().await;
     if let Some(java) = JavaVersion::get(major, &state.pool).await?
         && Path::new(&java.path).is_file()
     {
         return Ok(PathBuf::from(java.path));
     }
+    // A download cut short, or a game install touching the same folder,
+    // fails the extract; a fresh download fixes it.
     let path =
-        crate::api::jre::auto_install_java_with_loading(major, false).await?;
+        match crate::api::jre::auto_install_java_with_loading(major, false)
+            .await
+        {
+            Ok(path) => path,
+            Err(error) => {
+                tracing::warn!(
+                    "Installing Java {major} failed, retrying: {error}"
+                );
+                crate::api::jre::auto_install_java_with_loading(major, false)
+                    .await?
+            }
+        };
     let java = crate::api::jre::check_jre(path.clone()).await?;
     java.upsert(&state.pool).await?;
     Ok(path)
