@@ -26,4 +26,4 @@ print(f"""{changes}
 
 Based on Modrinth App {upstream}.
 
-**Windows:** download the `-setup.exe`. **Linux:** the `.AppImage` (updates itself), or the `.deb` / `.rpm`.""")
+**Windows:** download the `-setup.exe`. **macOS:** the `.dmg` (Apple Silicon and Intel). **Linux:** the `.AppImage` (updates itself), or the `.deb` / `.rpm`.""")

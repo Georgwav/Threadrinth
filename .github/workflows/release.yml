@@ -79,7 +79,14 @@ jobs:
           - name: Linux
             os: ubuntu-22.04
             bundles: ''
+          # One app for Apple Silicon and Intel Macs.
+          - name: macOS
+            os: macos-latest
+            bundles: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
+    # A failing macOS build doesn't hold back the Windows and Linux release.
+    continue-on-error: ${{ matrix.name == 'macOS' }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -97,6 +104,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ''
+          target: ${{ matrix.rust_targets || '' }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -121,6 +129,47 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      # Signs with the Developer ID certificate and notarizes when the Apple
+      # secrets are set; otherwise the app gets an ad-hoc signature, which
+      # runs after "Open Anyway" in System Settings. Only set variables are
+      # passed on, since Tauri tries to use any that exist.
+      - name: Apple signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          pass_on() {
+            if [ -n "${!1}" ]; then
+              {
+                echo "$1<<APPLE_EOF"
+                printf '%s\n' "${!1}"
+                echo "APPLE_EOF"
+              } >> "$GITHUB_ENV"
+            fi
+          }
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            pass_on APPLE_CERTIFICATE
+            pass_on APPLE_CERTIFICATE_PASSWORD
+            pass_on APPLE_SIGNING_IDENTITY
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              pass_on APPLE_ID
+              pass_on APPLE_PASSWORD
+              pass_on APPLE_TEAM_ID
+              echo "Signing and notarizing with $APPLE_SIGNING_IDENTITY"
+            else
+              echo "Signing with $APPLE_SIGNING_IDENTITY (not notarized: APPLE_ID, APPLE_PASSWORD or APPLE_TEAM_ID missing)"
+            fi
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "No Apple certificate: ad-hoc signature"
+          fi
 
       - name: Build and upload
         uses: tauri-apps/tauri-action@v0
