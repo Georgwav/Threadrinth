@@ -130,8 +130,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # Signs with the Developer ID certificate and notarizes when the Apple
-      # secrets are set; otherwise the app gets an ad-hoc signature, which
+      # Signs with the Developer ID certificate and notarizes with an App
+      # Store Connect API key when those secrets are set (no Apple ID or
+      # password needed); otherwise the app gets an ad-hoc signature, which
       # runs after "Open Anyway" in System Settings. Only set variables are
       # passed on, since Tauri tries to use any that exist.
       - name: Apple signing
@@ -141,9 +142,9 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
         run: |
           pass_on() {
             if [ -n "${!1}" ]; then
@@ -158,13 +159,16 @@ jobs:
             pass_on APPLE_CERTIFICATE
             pass_on APPLE_CERTIFICATE_PASSWORD
             pass_on APPLE_SIGNING_IDENTITY
-            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-              pass_on APPLE_ID
-              pass_on APPLE_PASSWORD
-              pass_on APPLE_TEAM_ID
-              echo "Signing and notarizing with $APPLE_SIGNING_IDENTITY"
+            if [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_PRIVATE_KEY" ]; then
+              key_path="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY.p8"
+              printf '%s\n' "$APPLE_API_PRIVATE_KEY" > "$key_path"
+              chmod 600 "$key_path"
+              pass_on APPLE_API_ISSUER
+              pass_on APPLE_API_KEY
+              echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+              echo "Signing with $APPLE_SIGNING_IDENTITY and notarizing with API key $APPLE_API_KEY"
             else
-              echo "Signing with $APPLE_SIGNING_IDENTITY (not notarized: APPLE_ID, APPLE_PASSWORD or APPLE_TEAM_ID missing)"
+              echo "Signing with $APPLE_SIGNING_IDENTITY (not notarized: APPLE_API_ISSUER, APPLE_API_KEY or APPLE_API_PRIVATE_KEY missing)"
             fi
           else
             echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
