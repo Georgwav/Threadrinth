@@ -2,6 +2,14 @@
 
 Each release's GitHub description is taken from its section here (see `scripts/release-notes.py`).
 
+## 0.21.12
+
+- Updated to Modrinth App 0.21.6:
+  - A new Update all window in an instance's Content tab: pick the version for each project and read the changelogs in one place.
+  - Updating everything runs in the download manager, so you can leave the Content tab while it installs.
+  - Launching no longer depends on external metadata for loader versions that are already installed.
+  - The window's close button turns red on hover again, and long text no longer overlaps collapsed sections in descriptions.
+
 ## 0.21.11
 
 - Threadrinth for macOS: one app for Apple Silicon and Intel Macs, as a `.dmg`, updating itself like on Windows and Linux.

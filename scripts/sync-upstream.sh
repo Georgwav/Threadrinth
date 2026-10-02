@@ -4,6 +4,10 @@
 # upstream changes to parts we don't ship never conflict.
 #
 # Usage: scripts/sync-upstream.sh [ref]   (default: upstream/main)
+#
+# Modrinth's tags are fetched as refs/upstream-tags/<tag>, because Threadrinth's
+# own release tags use the same names (v0.21.6 is both); a tag like v0.21.6
+# given here means Modrinth's.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -16,7 +20,11 @@ fi
 
 git remote get-url upstream >/dev/null 2>&1 ||
 	git remote add upstream https://github.com/modrinth/code.git
-git fetch upstream --tags
+git fetch --quiet --no-tags upstream '+refs/heads/main:refs/remotes/upstream/main' \
+	'+refs/tags/*:refs/upstream-tags/*'
+if git rev-parse -q --verify "refs/upstream-tags/$ref" >/dev/null; then
+	ref="refs/upstream-tags/$ref"
+fi
 
 git merge --no-ff --no-commit "$ref" || true
 
