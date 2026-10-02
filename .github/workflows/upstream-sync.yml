@@ -50,11 +50,14 @@ jobs:
           INPUT_REF: ${{ inputs.ref }}
         run: |
           git remote add upstream https://github.com/modrinth/code.git
-          git fetch --quiet upstream --tags
+          # Modrinth's tags go in their own namespace: Threadrinth's release
+          # tags have the same names, and fetching them as tags fails.
+          git fetch --quiet --no-tags upstream '+refs/tags/*:refs/upstream-tags/*'
           current=$(cat scripts/upstream-version.txt)
           target="$INPUT_REF"
           if [ -z "$target" ]; then
-            target=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            target=$(git for-each-ref --sort=-v:refname --format='%(refname:lstrip=2)' refs/upstream-tags \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
           fi
           newest=$(printf '%s\n%s\n' "$current" "$target" | sort -V | tail -1)
           if [ "$target" = "$current" ] || [ "$newest" != "$target" ]; then
