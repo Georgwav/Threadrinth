@@ -414,6 +414,9 @@ async fn plan_bulk_update(
         updateable_paths
     };
 
+    // Files added outside the app (like mods dropped into a folder instance)
+    // have no content entry; the update check identifies them by hash.
+    let mut found_updates: Option<Vec<ContentUpdate>> = None;
     let mut paths = HashSet::new();
     let mut updates = Vec::with_capacity(selections.len());
     for selection in selections {
@@ -424,14 +427,37 @@ async fn plan_bulk_update(
                 "Selected content cannot be updated",
             ));
         }
-        let project = installed
+        let Some(project) = installed
             .iter()
             .find(|project| project.relative_path == selection.project_path)
-            .ok_or_else(|| {
-                crate::state::content_store::input(
-                    "Selected content is no longer installed",
-                )
-            })?;
+        else {
+            let found = match &mut found_updates {
+                Some(found) => found,
+                None => found_updates.insert(
+                    check_content_updates(
+                        instance_id,
+                        Some(CacheBehaviour::MustRevalidate),
+                        state,
+                    )
+                    .await?,
+                ),
+            };
+            let update = found
+                .iter()
+                .find(|update| update.relative_path == selection.project_path)
+                .ok_or_else(|| {
+                    crate::state::content_store::input(
+                        "Selected content is no longer installed",
+                    )
+                })?;
+            updates.push(ContentUpdate {
+                project_id: update.project_id.clone(),
+                relative_path: selection.project_path.clone(),
+                current_version_id: update.current_version_id.clone(),
+                update_version_id: selection.version_id.clone(),
+            });
+            continue;
+        };
         let project_id = project.project_id.clone().ok_or_else(|| {
             crate::state::content_store::input(
                 "Selected content has no Modrinth project",

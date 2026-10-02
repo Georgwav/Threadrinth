@@ -9,6 +9,7 @@ Each release's GitHub description is taken from its section here (see `scripts/r
   - Updating everything runs in the download manager, so you can leave the Content tab while it installs.
   - Launching no longer depends on external metadata for loader versions that are already installed.
   - The window's close button turns red on hover again, and long text no longer overlaps collapsed sections in descriptions.
+- Update all also updates mods added to an instance's folder outside the app (it failed with "Selected content is no longer installed").
 
 ## 0.21.11
 

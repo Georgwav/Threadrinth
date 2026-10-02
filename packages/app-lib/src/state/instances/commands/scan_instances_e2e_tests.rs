@@ -618,8 +618,57 @@ async fn folder_instances_work_with_launcher_features() {
     .await
     .unwrap();
     api::refresh_content_updates(&shaders_id).await.unwrap();
-    let updated = api::update_all_projects(&shaders_id).await.unwrap();
-    assert_eq!(updated.len(), 2, "both mods updated: {updated:?}");
+    // Update all, like the app's Update all window: every item with an
+    // update, run as an install job. Updates need an installed instance; the
+    // install the scan would queue is off in this test.
+    api::edit(
+        &shaders_id,
+        EditInstance {
+            install_stage: Some(crate::state::InstanceInstallStage::Installed),
+            ..EditInstance::default()
+        },
+    )
+    .await
+    .unwrap();
+    let updates = api::get_content_items(&shaders_id, None)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter_map(|item| {
+            Some(crate::install::model::ContentUpdateSelection {
+                version_id: item.update_version_id?,
+                project_path: item.file_path,
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(updates.len(), 2, "both mods have updates: {updates:?}");
+    let job = crate::install::runner::bulk_update_content(
+        shaders_id.clone(),
+        updates,
+    )
+    .await
+    .unwrap();
+    let job_id = job.job_id.parse().unwrap();
+    let job = loop {
+        let job = crate::install::runner::get_job(job_id).await.unwrap();
+        if !matches!(
+            job.status,
+            crate::install::model::InstallJobStatus::Queued
+                | crate::install::model::InstallJobStatus::Running
+        ) {
+            break job;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    };
+    assert!(
+        matches!(
+            job.status,
+            crate::install::model::InstallJobStatus::Succeeded
+        ),
+        "update all: {:?} {:?}",
+        job.status,
+        job.error
+    );
     let jars = std::fs::read_dir(shaders.join("mods"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
