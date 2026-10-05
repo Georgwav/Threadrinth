@@ -194,6 +194,47 @@ static GLOBAL_FETCH_FENCE: LazyLock<FetchFence> =
 
 const API_RETRY_AFTER_FALLBACK: Duration = Duration::from_secs(60);
 
+/// Threadrinth: counts Modrinth API requests by route and logs a summary
+/// about once a minute, so a log shows what is using up the rate limit.
+struct ApiRequestLog {
+    since: Instant,
+    counts: HashMap<String, u32>,
+}
+
+static API_REQUEST_LOG: LazyLock<Mutex<ApiRequestLog>> = LazyLock::new(|| {
+    Mutex::new(ApiRequestLog {
+        since: Instant::now(),
+        counts: HashMap::new(),
+    })
+});
+
+fn record_api_request(method: &Method, url: &str) {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let path = path.split("modrinth.com/").nth(1).unwrap_or(path);
+    let mut log = API_REQUEST_LOG.lock();
+    *log.counts.entry(format!("{method} {path}")).or_default() += 1;
+    let elapsed = log.since.elapsed();
+    if elapsed < Duration::from_secs(60) {
+        return;
+    }
+    let total: u32 = log.counts.values().sum();
+    let mut top = log.counts.iter().collect::<Vec<_>>();
+    top.sort_by(|a, b| b.1.cmp(a.1));
+    let top = top
+        .iter()
+        .take(10)
+        .map(|(route, count)| format!("{count}x {route}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    info!(
+        total,
+        seconds = elapsed.as_secs(),
+        "Modrinth API requests: {top}"
+    );
+    log.since = Instant::now();
+    log.counts.clear();
+}
+
 // This means the unit recovery time will be:
 // replenish one unit time in seconds = (60 / (units recovered per minute))
 // smooth recovery time = replenish one unit time in seconds * API_RATE_LIMIT_RECOVERY_SIZE.
@@ -262,7 +303,11 @@ impl ApiRateLimit {
             return None;
         }
 
-        debug!("Received 429 response; blocking");
+        tracing::warn!(
+            url = response.url().path(),
+            retry_after = ?response.headers().get(reqwest::header::RETRY_AFTER),
+            "Modrinth answered 429 Too Many Requests; blocking API requests",
+        );
 
         let retry_after = response
             .headers()
@@ -982,6 +1027,7 @@ async fn fetch_advanced_with_target(
     for attempt in 1..=(FETCH_ATTEMPTS + 1) {
         if is_api_url {
             GLOBAL_API_RATE_LIMIT.check()?;
+            record_api_request(&method, url);
         }
 
         if let Some(fence_key) = fence_key

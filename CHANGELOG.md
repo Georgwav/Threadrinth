@@ -2,6 +2,11 @@
 
 Each release's GitHub description is taken from its section here (see `scripts/release-notes.py`).
 
+## 0.21.13
+
+- CurseForge descriptions keep images in proportion when the window is narrow, instead of squashing them.
+- The log now records how many Modrinth requests the app makes each minute (by route), and every "Too Many Requests" answer from Modrinth, to track down rate-limit errors.
+
 ## 0.21.12
 
 - Updated to Modrinth App 0.21.6:

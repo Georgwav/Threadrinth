@@ -391,7 +391,7 @@ function ftbVersionInfo(version: FtbVersion) {
 					:capitalize="false"
 				/>
 
-				<div v-if="tab === 'description'" class="rounded-2xl bg-bg-raised p-6">
+				<div v-if="tab === 'description'" class="cf-description rounded-2xl bg-bg-raised p-6">
 					<ProjectPageDescription :description="body" />
 				</div>
 				<template v-else>
@@ -435,3 +435,11 @@ function ftbVersionInfo(version: FtbVersion) {
 		<ManualDownloadsModal ref="manualModal" />
 	</div>
 </template>
+
+<style scoped>
+/* CurseForge descriptions give images a fixed width and height; when the
+   width shrinks to fit, keep the aspect ratio instead of squashing them. */
+.cf-description :deep(img) {
+	height: auto;
+}
+</style>
