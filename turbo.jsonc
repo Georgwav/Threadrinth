@@ -1,6 +1,8 @@
 {
 	"$schema": "./node_modules/turbo/schema.json",
 	"concurrency": "100%",
+	// Threadrinth: AGENTS.md is not shipped (scripts/upstream-removed.txt).
+	"agentGuidance": false,
 	"futureFlags": {
 		"experimentalCargoWorkspaces": true,
 		"experimentalTaskCommand": true
