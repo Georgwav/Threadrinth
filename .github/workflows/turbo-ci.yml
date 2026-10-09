@@ -145,8 +145,13 @@ jobs:
       # Threadrinth only ships the launcher, so the backend and its test
       # services (Postgres, ClickHouse, Elasticsearch, ...) are skipped. The
       # blog's lint checks its images were copied into the removed website.
+      # Rust crates are Turborepo packages under their crate names, so the
+      # app-lib is `theseus`.
       - name: Lint and test
-        run: pnpm turbo run lint test --continue --filter=@modrinth/app... --filter=@modrinth/app-frontend... --filter=@modrinth/app-lib... --filter='!@modrinth/blog'
+        run: pnpm turbo run lint test --continue --filter=@modrinth/app... --filter=@modrinth/app-frontend... --filter=theseus... --filter='!@modrinth/blog'
+
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
 
       # Boots the launcher core against a temporary folder and checks folder
       # instances together with mod updates, renames, copies and synced options.
