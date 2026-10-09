@@ -100,6 +100,14 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "$BRANCH"
           ./scripts/sync-upstream.sh "$TARGET" || true
+          # Lockfiles are regenerated below, so their conflicts resolve to
+          # Modrinth's version first.
+          for lockfile in Cargo.lock pnpm-lock.yaml; do
+            if git diff --name-only --diff-filter=U | grep -qx "$lockfile"; then
+              git checkout --theirs -- "$lockfile"
+              git add -- "$lockfile"
+            fi
+          done
           conflicts=$(git diff --name-only --diff-filter=U)
           if [ -n "$conflicts" ]; then
             {
@@ -138,10 +146,19 @@ jobs:
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
           title="Modrinth App $TARGET needs a manual merge"
-          if gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number' | grep -q .; then
+          {
+            echo "## $title"
+            echo
+            echo "Conflicts with Threadrinth's changes in:"
+            echo
+            echo "$CONFLICTS" | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number' 2>/dev/null | grep -q .; then
             echo "An issue already exists."
             exit 0
           fi
+          # Without issue permissions on the token, the failed run (and its
+          # email) is the notice.
           gh issue create --title "$title" --body "Merging Modrinth App $TARGET conflicts with Threadrinth's changes in:
 
           \`\`\`
@@ -157,4 +174,6 @@ jobs:
           echo $TARGET > scripts/upstream-version.txt
           \`\`\`
 
-          Then open a PR from that branch."
+          Then open a PR from that branch." && exit 0
+          echo "::error::$title. Conflicts: $(echo "$CONFLICTS" | paste -sd ' ')"
+          exit 1

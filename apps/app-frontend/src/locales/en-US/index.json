@@ -455,6 +455,18 @@
   "app.curseforge.versions.none": {
     "message": "No versions match the selected Minecraft version and loader."
   },
+  "app.debug-export.canceling": {
+    "message": "Canceling export…"
+  },
+  "app.debug-export.exporting": {
+    "message": "Exporting…"
+  },
+  "app.debug-export.finishing": {
+    "message": "Finishing…"
+  },
+  "app.debug-export.preparing": {
+    "message": "Preparing files…"
+  },
   "app.download-manager.active": {
     "message": "Active"
   },
@@ -3404,6 +3416,15 @@
   "app.settings.resource-management.app-directory.title": {
     "message": "App directory"
   },
+  "app.settings.resource-management.debug-info.description": {
+    "message": "Export app logs and diagnostic data to a ZIP file to share with Modrinth support."
+  },
+  "app.settings.resource-management.debug-info.export": {
+    "message": "Export debug info"
+  },
+  "app.settings.resource-management.debug-info.title": {
+    "message": "Debug info"
+  },
   "app.settings.resource-management.maximum-concurrent-downloads.description": {
     "message": "Number of files the app can download at once. Lower this if downloads are unreliable on your connection. Requires an app restart."
   },
@@ -3860,6 +3881,12 @@
   "app.skins.section.default-skins": {
     "message": "Default skins"
   },
+  "app.skins.section.dungeons-hero": {
+    "message": "Dungeons Hero"
+  },
+  "app.skins.section.dungeons-ii-hero": {
+    "message": "Dungeons II Hero"
+  },
   "app.skins.section.minecon-earth-2017": {
     "message": "MINECON Earth 2017"
   },
@@ -3889,6 +3916,9 @@
   },
   "app.skins.section.tiny-takeover": {
     "message": "Tiny Takeover"
+  },
+  "app.skins.section.wilderness-bound": {
+    "message": "Wilderness Bound"
   },
   "app.skins.sign-in.button": {
     "message": "Sign in to Microsoft"

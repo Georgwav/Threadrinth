@@ -67,3 +67,7 @@ packages/xredis
 
 # Modrinth logo on the welcome screen (replaced by the Threadrinth mark)
 apps/app-frontend/src/assets/welcome/modrinth-social-icon.png
+
+# pnpm patches for the website's email templates
+patches/@vue-email__markdown@0.0.7.patch
+patches/@vue-email__tailwind@0.2.0.patch
