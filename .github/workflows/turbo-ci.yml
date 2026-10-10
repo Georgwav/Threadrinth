@@ -13,6 +13,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/prod' }}
 
 env:
+  TURBO_TELEMETRY_DISABLED: 1
+  pnpm_config_color: always
   # Threadrinth: Namespace runners and caches are only available to Modrinth.
   INTERNAL: false
 
@@ -22,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Ensure pnpm output is colored in GitHub Actions logs
+      # Color the output of Node tools run by Turborepo tasks in GitHub Actions logs
       FORCE_COLOR: 3
       # Make cargo nextest successfully ignore projects without tests
       NEXTEST_NO_TESTS: pass
@@ -46,13 +48,24 @@ jobs:
         if: env.INTERNAL != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          filter: blob:none
 
       - name: Check out code (Namespace)
         if: env.INTERNAL == 'true'
         uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
         with:
           fetch-depth: 2
+
+      # Fork PRs start services later, only if the labrinth tests need them. The internal check
+      # lives in the command because `wait` steps cannot be skipped with `if`.
+      - name: Start services
+        id: services
+        background: true
+        run: |
+          if [ "$INTERNAL" = 'true' ]; then
+            docker compose --profile clustered-redis up --wait
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -64,7 +77,7 @@ jobs:
 
       - name: Set up caches
         if: env.INTERNAL == 'true'
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           cache: |
             rust
@@ -73,7 +86,7 @@ jobs:
 
       - name: Set up Turborepo caching
         if: env.INTERNAL == 'true'
-        uses: namespace-actions/setup-turbocache@f96bd6befa13ae74b2858a5be49573640d4636f5 # v0.0.2
+        uses: namespace-actions/setup-turbocache@a94b84c111f2cc781a4a83c4d07a99f2c63e33d6 # v0.0.3
 
       # Threadrinth: Turborepo's local cache, so packages whose files didn't
       # change skip their lint and tests.
@@ -132,8 +145,13 @@ jobs:
       # Threadrinth only ships the launcher, so the backend and its test
       # services (Postgres, ClickHouse, Elasticsearch, ...) are skipped. The
       # blog's lint checks its images were copied into the removed website.
+      # Rust crates are Turborepo packages under their crate names, so the
+      # app-lib is `theseus`.
       - name: Lint and test
-        run: pnpm turbo run lint test --continue --filter=@modrinth/app... --filter=@modrinth/app-frontend... --filter=@modrinth/app-lib... --filter='!@modrinth/blog'
+        run: pnpm turbo run lint test --continue --filter=@modrinth/app... --filter=@modrinth/app-frontend... --filter=theseus... --filter='!@modrinth/blog'
+
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
 
       # Boots the launcher core against a temporary folder and checks folder
       # instances together with mod updates, renames, copies and synced options.

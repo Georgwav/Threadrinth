@@ -2,6 +2,7 @@ use crate::State;
 use crate::api::curseforge::bundle::fetch_pack_content_file;
 use crate::api::instance::CONFIG_FILE_EXTENSIONS;
 use crate::api::instance::GameOptionsPackSource;
+use crate::api::instance::synced_servers::MODPACK_SERVER_PATHS;
 use crate::event::emit::loading_try_for_each_concurrent;
 use crate::install::{
     InstallErrorContext, InstallJobEventKind, InstallPhaseDetails,
@@ -507,7 +508,21 @@ where
     Ok((size, hasher.digest().to_string()))
 }
 
-pub(crate) async fn install_zipped_mrpack_files_with_reporter(
+pub(crate) fn install_zipped_mrpack_files_with_reporter(
+    create_pack: CreatePack,
+    ignore_lock: bool,
+    reason: DownloadReason,
+    reporter: InstallProgressReporter,
+) -> impl Future<Output = crate::Result<String>> + Send + 'static {
+    Box::pin(install_zipped_mrpack_files_with_reporter_inner(
+        create_pack,
+        ignore_lock,
+        reason,
+        reporter,
+    ))
+}
+
+async fn install_zipped_mrpack_files_with_reporter_inner(
     create_pack: CreatePack,
     ignore_lock: bool,
     reason: DownloadReason,
@@ -1006,6 +1021,14 @@ pub(crate) async fn install_zipped_mrpack_files_with_reporter(
         has_override("client-overrides/config/yosbr/options.txt");
     let has_yosbr_options_override =
         has_override("overrides/config/yosbr/options.txt");
+    let has_client_default_options_override =
+        has_override("client-overrides/config/defaultoptions/options.txt")
+            || has_override(
+                "client-overrides/config/defaultoptions/keybindings.txt",
+            );
+    let has_default_options_override =
+        has_override("overrides/config/defaultoptions/options.txt")
+            || has_override("overrides/config/defaultoptions/keybindings.txt");
     let override_file_entries = zip_reader
         .file()
         .entries()
@@ -1016,11 +1039,19 @@ pub(crate) async fn install_zipped_mrpack_files_with_reporter(
             let is_override = (filename.starts_with("overrides/")
                 || filename.starts_with("client-overrides/"))
                 && !filename.ends_with('/');
-            let shadowed_game_options = has_client_options_override
-                && filename == "overrides/options.txt";
-            let shadowed_yosbr_options = has_client_yosbr_options_override
-                && filename == "overrides/config/yosbr/options.txt";
-            (is_override && !shadowed_game_options && !shadowed_yosbr_options)
+            let shadowed_sync_override =
+                filename.strip_prefix("overrides/").is_some_and(|path| {
+                    (MODPACK_SERVER_PATHS.contains(&path)
+                        || matches!(
+                            path,
+                            "options.txt"
+                                | "config/yosbr/options.txt"
+                                | "config/defaultoptions/options.txt"
+                                | "config/defaultoptions/keybindings.txt"
+                        ))
+                        && has_override(&format!("client-overrides/{path}"))
+                });
+            (is_override && !shadowed_sync_override)
                 .then(|| (index, file.clone()))
         })
         .collect::<Vec<_>>();
@@ -1028,10 +1059,9 @@ pub(crate) async fn install_zipped_mrpack_files_with_reporter(
         .iter()
         .map(|(_, file)| file.uncompressed_size())
         .sum::<u64>();
-    let has_servers_override = override_file_entries.iter().any(|(_, file)| {
-        let filename = file.filename().as_str().unwrap_or_default();
-        filename == "overrides/servers.dat"
-            || filename == "client-overrides/servers.dat"
+    let servers_override_path = MODPACK_SERVER_PATHS.into_iter().find(|path| {
+        has_override(&format!("client-overrides/{path}"))
+            || has_override(&format!("overrides/{path}"))
     });
     let game_options_override_source = if has_client_options_override {
         Some(GameOptionsPackSource::ClientOverrides)
@@ -1041,6 +1071,10 @@ pub(crate) async fn install_zipped_mrpack_files_with_reporter(
         Some(GameOptionsPackSource::ClientOverridesYosbr)
     } else if has_yosbr_options_override {
         Some(GameOptionsPackSource::OverridesYosbr)
+    } else if has_client_default_options_override {
+        Some(GameOptionsPackSource::ClientOverridesDefaultOptions)
+    } else if has_default_options_override {
+        Some(GameOptionsPackSource::OverridesDefaultOptions)
     } else {
         None
     };
@@ -1223,17 +1257,11 @@ pub(crate) async fn install_zipped_mrpack_files_with_reporter(
         }
     }
 
-    if has_servers_override {
-        crate::api::instance::synced_servers::capture_modpack_servers(
-            &instance_id,
-        )
-        .await?;
-    } else {
-        crate::api::instance::synced_servers::clear_modpack_servers(
-            &instance_id,
-        )
-        .await?;
-    }
+    crate::api::instance::synced_servers::capture_modpack_server_override(
+        &instance_id,
+        servers_override_path,
+    )
+    .await?;
     if let Err(error) = crate::api::instance::capture_game_options_pack_base(
         &instance_id,
         game_options_override_source,

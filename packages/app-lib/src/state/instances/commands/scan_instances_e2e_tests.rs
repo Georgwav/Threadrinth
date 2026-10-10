@@ -558,28 +558,29 @@ async fn folder_instances_work_with_launcher_features() {
 
     // --- Install jobs stored as binary JSON ------------------------------
     // Older builds stored them that way after moving the app folder, which
-    // broke every job list ("invalid utf-8 sequence"); the repair migration
-    // makes them readable again.
+    // broke every job list ("invalid utf-8 sequence"). Jobs are read with
+    // json(state) since Modrinth 0.21.7, and the repair migration turns them
+    // back into text; both keep them readable.
     let state = State::get().await.unwrap();
     sqlx::query("UPDATE install_jobs SET state = jsonb(state)")
         .execute(&state.pool)
         .await
         .unwrap();
-    let error = crate::install::runner::list_jobs(true).await.unwrap_err();
-    assert!(error.to_string().contains("utf-8"), "{error}");
+    let listed = |jobs: Vec<crate::install::InstallJobSnapshot>| {
+        jobs.iter().any(|job| job.job_id == job_id)
+    };
+    assert!(listed(
+        crate::install::runner::list_jobs(true).await.unwrap()
+    ));
     sqlx::raw_sql(include_str!(
         "../../../../migrations/20260925120000_threadrinth-install-jobs-text-state.sql"
     ))
     .execute(&state.pool)
     .await
     .unwrap();
-    assert!(
-        crate::install::runner::list_jobs(true)
-            .await
-            .unwrap()
-            .iter()
-            .any(|job| job.job_id == job_id)
-    );
+    assert!(listed(
+        crate::install::runner::list_jobs(true).await.unwrap()
+    ));
     println!("binary install job states repaired: ok");
 
     // --- Update all -----------------------------------------------------

@@ -2,6 +2,14 @@
 
 Each release's GitHub description is taken from its section here (see `scripts/release-notes.py`).
 
+## 0.21.14
+
+- Updated to Modrinth App 0.21.9:
+  - Download manager tasks no longer get stuck on "Pending…", and several Update all failures are fixed (two files of the same project, "modpack data invalid").
+  - Modrinth sign-in supports links from the browser and no longer signs you out at random.
+  - An "Export debug info" button in Settings → Resource management, and many new Dungeons skins in the skin selector.
+  - Disabling content keeps its "Date added", and the window no longer grows on its own on Windows.
+
 ## 0.21.13
 
 - CurseForge descriptions keep images in proportion when the window is narrow, instead of squashing them.
